@@ -1,0 +1,169 @@
+<!DOCTYPE html> 
+
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+<script src="http://mbostock.github.com/d3/d3.js?2.7.1"></script> 
+<style> 
+ 
+body {
+  font: 30px sans-serif;
+}
+ 
+rect {
+  fill: steelblue;
+  stroke: white;
+}
+
+line {
+  stroke: black;
+  shape-rendering: crispEdges;
+}
+ 
+</style> 
+<body> 
+
+{% if info.brand %}
+  <h1 align="center"> {{ info.brand }}</h1>
+{% else %}
+  <h1>Giv me a brand and I'll get going.... I like Acne!</h1>
+{% endif %}
+
+
+<div class='graph' id='graph'>
+</div>
+
+</body> 
+<script>
+
+var data =  {{ info.data | safe }};
+console.log(data)
+
+var width = 960,
+    height = 700;
+
+var chart_start = 300;
+var chart_height = 100;
+var chart_width = 200;
+var chart_offset = 100;
+
+var color = d3.scale.category20();
+
+var force = d3.layout.force()
+    .charge(-120)
+    .linkDistance(60)
+    .size([width, height]);
+
+var svg = d3.select("#graph").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+d3.json("/graphs.json/asos", function(json) {
+  force
+      .nodes(json.nodes)
+      .links(json.links)
+      .start();
+
+      console.log(json.brand_prices)
+      var pricebands = json.brand_prices
+      for(var i=0; i<pricebands.length; i++) { pricebands[i] = +pricebands[i]; } 
+
+    var y = d3.scale.linear()
+     .domain([0, d3.max(pricebands)])
+     .rangeRound([0, chart_height*2]);
+
+     var price_hist = svg.selectAll("rect.chart_back")
+    .data(pricebands)
+    .enter().append("rect")
+    .attr("class", "back_chart")
+    .attr("width", 20)
+    .style("fill", "gray")
+    .attr("x", function(d, i) { return chart_offset + i * 20; })
+    .attr("y", function(d) { return chart_start + (chart_height) - y(d); })
+    .attr("height", function(d) { return y(d); });
+
+  var link = svg.selectAll("line.link")
+      .data(json.links)
+    .enter().append("line")
+      .attr("class", "link")
+      .style("stroke-width", function(d) { return Math.sqrt(d.value); });
+
+  var node = svg.selectAll("circle.node")
+      .data(json.nodes)
+    .enter().append("circle")
+      .attr("class", "node")
+      .attr("pricebands", function(d) { return d.pricebands; })
+      .attr("count", function(d) { return d.size; })
+      .attr("name", function(d) { return d.name; })
+      .attr("r", function(d) { return d.size; })
+      .style("fill", function(d) { return color(d.group); })
+      .style("opacity", 0.5)
+      .on("mouseover", node_highlight)
+      //.on("mousedown", node_notes)
+      .on("mouseout", function(){d3.select(this).transition().duration(1000).attr("r", function(d) { return d.size; });})
+      .call(force.drag);
+
+  //var label =  svg.selectAll("text.label")
+  //    .data(json.nodes)
+  //    .enter().append("text")
+  //    .attr("x", 100)
+  // .attr("y", function(d) { return 10 + d.id * 10; })
+  //   .attr("text-anchor", "end") // text-align: right
+  //   .text(function(d) { return d.name; });
+
+  node.append("title")
+      .text(function(d) { return d.name; });
+
+  force.on("tick", function() {
+    link.attr("x1", function(d) { return d.source.x; })
+        .attr("y1", function(d) { return d.source.y; })
+        .attr("x2", function(d) { return d.target.x; })
+        .attr("y2", function(d) { return d.target.y; });
+
+    node.attr("cx", function(d) { return d.x; })
+        .attr("cy", function(d) { return d.y; });
+  });  //end force
+}); // end json
+
+
+function node_highlight(){
+  d3.select(this).transition().duration(1000).attr("r",40);
+
+    svg.selectAll(".note").remove();
+    svg.selectAll(".price_chart").remove();
+
+    svg.append("text")
+    .attr("class", "note")
+    .attr("x", 190)
+    .attr("y", 100)
+    .attr("text-anchor", "end") // text-align: right
+    .text(d3.select(this).attr("name"));
+
+    svg.append("text")
+    .attr("class", "note")
+    .attr("x", 190)
+    .attr("y", 130)
+    .attr("text-anchor", "end") // text-align: right
+    .text(d3.select(this).attr("count"));
+
+    var pricebands = (d3.select(this).attr("pricebands")).split(',');
+    for(var i=0; i<pricebands.length; i++) { pricebands[i] = +pricebands[i]; } 
+
+    var y = d3.scale.linear()
+     .domain([0, d3.max(pricebands)])
+     .rangeRound([0, chart_height]);
+
+    console.log(y)
+
+    svg.selectAll("rect.chart")
+    .data(pricebands)
+    .enter().append("rect")
+    .attr("class", "price_chart")
+    .attr("width", 20)
+    .attr("x", function(d, i) { return chart_offset + i * 20; })
+    .attr("y", function(d) { return chart_start + chart_height - y(d); })
+    .attr("height", function(d) { return y(d); });
+
+};
+
+
+
+</script> 
